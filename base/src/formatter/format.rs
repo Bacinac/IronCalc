@@ -170,11 +170,15 @@ pub fn format_number(value_original: f64, format: &str, locale: &Locale) -> Form
         ParsePart::Date(p) => {
             let tokens = &p.tokens;
             let mut text = "".to_string();
-            let time_fract = value.fract();
-            let hours = (time_fract * 24.0).floor();
-            let minutes = ((time_fract * 24.0 - hours) * 60.0).floor();
-            let seconds = ((((time_fract * 24.0 - hours) * 60.0) - minutes) * 60.0).round();
-            let date = from_excel_date(value as i64).ok();
+            // Rounded to the second before it is split, as Excel does: 13:44:59.9999
+            // shows as 13:45, not as 13:44 with 60 seconds rounded away.
+            let total = (value * 86400.0).round();
+            let day = (total / 86400.0).floor();
+            let of_day = total - day * 86400.0;
+            let hours = (of_day / 3600.0).floor();
+            let minutes = ((of_day - hours * 3600.0) / 60.0).floor();
+            let seconds = of_day - hours * 3600.0 - minutes * 60.0;
+            let date = from_excel_date(day as i64).ok();
             for token in tokens {
                 match token {
                     TextToken::Literal(c) => {
@@ -399,27 +403,27 @@ pub fn format_number(value_original: f64, format: &str, locale: &Locale) -> Form
                         text = format!("{text}{minute:02}");
                     }
                     TextToken::ElapsedHour => {
-                        let hour = (value * 24.0).floor() as i32;
+                        let hour = (total / 3600.0).floor() as i32;
                         text = format!("{text}{hour}");
                     }
                     TextToken::ElapsedHourPadded => {
-                        let hour = (value * 24.0).floor() as i32;
+                        let hour = (total / 3600.0).floor() as i32;
                         text = format!("{text}{hour:02}");
                     }
                     TextToken::ElapsedMinute => {
-                        let minute = (value * 24.0 * 60.0).floor() as i32;
+                        let minute = (total / 60.0).floor() as i32;
                         text = format!("{text}{minute}");
                     }
                     TextToken::ElapsedMinutePadded => {
-                        let minute = (value * 24.0 * 60.0).floor() as i32;
+                        let minute = (total / 60.0).floor() as i32;
                         text = format!("{text}{minute:02}");
                     }
                     TextToken::ElapsedSecond => {
-                        let second = (value * 24.0 * 60.0 * 60.0).floor() as i32;
+                        let second = total as i32;
                         text = format!("{text}{second}");
                     }
                     TextToken::ElapsedSecondPadded => {
-                        let second = (value * 24.0 * 60.0 * 60.0).floor() as i32;
+                        let second = total as i32;
                         text = format!("{text}{second:02}");
                     }
                 }

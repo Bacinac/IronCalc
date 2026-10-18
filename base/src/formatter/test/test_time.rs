@@ -70,3 +70,20 @@ fn elapsed_hour_padded() {
     let formatted = format_number(value, format, locale);
     assert_eq!(formatted.text, "02:24:00");
 }
+
+#[test]
+fn rounded_to_the_second_before_it_is_split() {
+    let locale = get_default_locale();
+    // =DATE(2026,10,18)+TIME(13,45,0) lands just below 13:45 in binary.
+    let value = 46313.0 + (13.0 * 3600.0 + 45.0 * 60.0) / 86400.0;
+    assert_eq!(format_number(value, "hh:mm", locale).text, "13:45");
+    assert_eq!(format_number(value, "hh:mm:ss", locale).text, "13:45:00");
+    assert_eq!(format_number(value, "[h]:mm", locale).text, "1111525:45");
+    let late = 46313.0 + 86399.9999 / 86400.0;
+    assert_eq!(
+        format_number(late, "m/d/yyyy hh:mm:ss", locale).text,
+        "10/19/2026 00:00:00"
+    );
+    let third = 0.1 + 0.2;
+    assert_eq!(format_number(third, "[mm]:ss", locale).text, "432:00");
+}
