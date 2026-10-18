@@ -318,3 +318,39 @@ fn long_dates_with_dots() {
         Ok((45353.0, Some("mm.dd.yyyy".to_string())))
     );
 }
+
+#[test]
+fn times_alone_and_after_a_date() {
+    let quarter_to_two = (13.0 * 3600.0 + 45.0 * 60.0) / 86400.0;
+    assert_eq!(
+        parse("13:45", &["$"]),
+        Ok((quarter_to_two, Some("h:mm".to_string())))
+    );
+    assert_eq!(
+        parse("6:35:10", &["$"]),
+        Ok((
+            (6.0 * 3600.0 + 35.0 * 60.0 + 10.0) / 86400.0,
+            Some("h:mm:ss".to_string())
+        ))
+    );
+    assert_eq!(
+        parse("1:45 PM", &["$"]),
+        Ok((quarter_to_two, Some("h:mm AM/PM".to_string())))
+    );
+    assert_eq!(
+        parse_de("18.10.2026 13:45", &["$"]),
+        Ok((
+            46313.0 + quarter_to_two,
+            Some("dd.mm.yyyy h:mm".to_string())
+        ))
+    );
+    assert_eq!(
+        parse_de("18.10.2026 13:45:00", &["$"]),
+        Ok((
+            46313.0 + quarter_to_two,
+            Some("dd.mm.yyyy h:mm:ss".to_string())
+        ))
+    );
+    assert!(parse("13:45 x", &["$"]).is_err());
+    assert!(parse("25:00", &["$"]).is_err());
+}

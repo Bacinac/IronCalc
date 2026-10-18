@@ -1,6 +1,7 @@
 use chrono::Datelike;
 
 use crate::{
+    functions::date_and_time::parse_time_of_day,
     locale::Locale,
     number_format::{parse_finite_number, to_precision},
 };
@@ -816,6 +817,44 @@ pub(crate) fn parse_date(value: &str, locale: &Locale) -> Result<(i32, String), 
 /// "$ 123,345.678" => (123345.678, "$#,##0.00")
 /// "30.34%" => (0.3034, "0.00%")
 /// 100€ => (100, "100€")
+/// The format of a typed time of the day: with seconds and AM/PM where they were typed.
+fn time_format(time: &str) -> String {
+    let lower = time.to_lowercase();
+    let seconds = if time.matches(':').count() > 1 {
+        ":ss"
+    } else {
+        ""
+    };
+    let ampm = if lower.ends_with("am") || lower.ends_with("pm") {
+        " AM/PM"
+    } else {
+        ""
+    };
+    format!("h:mm{seconds}{ampm}")
+}
+
+/// A time of the day, alone or after a date: "13:45", "6:35:10", "3:30 PM",
+/// "18.10.2026. 13:45".
+fn parse_time(value: &str, locale: &Locale) -> Option<(f64, String)> {
+    let lower = value.to_lowercase();
+    if !value.contains(':') && !lower.ends_with("am") && !lower.ends_with("pm") {
+        return None;
+    }
+    if let Some(fraction) = parse_time_of_day(value) {
+        return Some((fraction, time_format(value)));
+    }
+    for (at, _) in value.match_indices(' ') {
+        let (date, time) = (&value[..at], value[at + 1..].trim_start());
+        if let (Ok((serial_number, format)), Some(fraction)) =
+            (parse_date(date, locale), parse_time_of_day(time))
+        {
+            let format = format!("{format} {}", time_format(time));
+            return Some((serial_number as f64 + fraction, format));
+        }
+    }
+    None
+}
+
 pub(crate) fn parse_formatted_number(
     original: &str,
     currencies: &[&str],
@@ -880,6 +919,11 @@ pub(crate) fn parse_formatted_number(
     // check if it is a date. NOTE: we don't trim the original here
     if let Ok((serial_number, format)) = parse_date(original, locale) {
         return Ok((serial_number as f64, Some(format)));
+    }
+
+    // check if it is a time of the day, alone or after a date
+    if let Some((serial_number, format)) = parse_time(value, locale) {
+        return Ok((serial_number, Some(format)));
     }
 
     // Lastly we check if it is a number
